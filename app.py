@@ -34,7 +34,11 @@ if "creds" not in st.session_state:
             st.session_state.creds = response.json()
             st.query_params.clear()
             st.rerun()
-    st.markdown(f"### [CLIQUE AQUI PARA FAZER LOGIN]({get_flow_auth_url()})")
+    
+    # Substituímos o markdown gigante pelo botão amigável
+    st.info("Para começar, autorize o acesso à sua conta Google.")
+    st.link_button("ENTRAR COM GOOGLE", get_flow_auth_url(), type="primary")
+
 else:
     creds = Credentials(token=st.session_state.creds["access_token"])
     drive_service = build('drive', 'v3', credentials=creds)
@@ -44,7 +48,6 @@ else:
     tab1, tab2 = st.tabs(["Nova Nota", "Visualizar/Apagar Notas"])
 
     with tab1:
-        # Campo renomeado e com dica para o usuário
         id_despesa = st.text_input("ID da Despesa (jantar, almoço, café, refeição, etc)")
         valor = st.number_input("Valor", min_value=0.0, format="%.2f")
         data = st.date_input("Data")
@@ -58,13 +61,13 @@ else:
                 media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg')
                 file = drive_service.files().create(body={'name': nome_arquivo}, media_body=media).execute()
                 
-                # Planilha agora grava apenas 5 colunas (sem Categoria)
                 sheet.append_row([id_despesa, str(data), valor, estabelecimento, file.get('id')])
                 st.success(f"Nota salva como: {nome_arquivo}")
 
     with tab2:
         rows = sheet.get_all_records()
         if rows:
+            # Lista com valor destacado
             lista_ids = [f"{r['ID']} - R$ {r['Valor']} ({r['Data']})" for r in rows]
             escolha = st.selectbox("Selecione a nota para visualizar:", lista_ids)
             idx = lista_ids.index(escolha)
