@@ -5,10 +5,11 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import io
 
-# URL EXATA cadastrada no Console do Google (sem a barra no final)
+# URL EXATA cadastrada no Console do Google
 REDIRECT_URL = "https://meu-controle-de-notas-reyhlqux3cv4vlwz5qpxjx.streamlit.app"
 
 def get_flow():
+    # Removendo a complexidade do PKCE para evitar o erro de 'code_verifier'
     return Flow.from_client_config(
         {
             "web": {
@@ -25,13 +26,13 @@ def get_flow():
 
 st.title("Controle de Notas")
 
-# Gerenciamento da Sessão
 if "creds" not in st.session_state:
     query_params = st.query_params
     
     if "code" in query_params:
         try:
             flow = get_flow()
+            # Esta chamada agora deve ser mais estável sem a exigência de PKCE
             flow.fetch_token(code=query_params["code"])
             st.session_state.creds = flow.credentials
             st.query_params.clear()
@@ -42,18 +43,17 @@ if "creds" not in st.session_state:
                 st.query_params.clear()
                 st.rerun()
     
-    # Exibe o link de login
     flow = get_flow()
+    # auth_url gerada sem forçar PKCE
     auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
     st.markdown(f"### [CLIQUE AQUI PARA FAZER LOGIN NO GOOGLE]({auth_url})")
 
 else:
-    # --- ÁREA LOGADA DO APP ---
     creds = st.session_state.creds
     drive_service = build('drive', 'v3', credentials=creds)
     gc = gspread.authorize(creds)
 
-    st.success("Autenticado com sucesso!")
+    st.success("Autenticado!")
     
     id_despesa = st.text_input("ID da Despesa")
     valor = st.number_input("Valor", min_value=0.0, format="%.2f")
@@ -63,17 +63,13 @@ else:
 
     if st.button("Enviar Nota"):
         if foto and id_despesa:
-            # Upload da foto
             file_metadata = {'name': f"{id_despesa}.jpg"}
             media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg')
             file = drive_service.files().create(body=file_metadata, media_body=media).execute()
-            
-            # Salva na planilha
             sheet = gc.open("Controle de notas APP").sheet1
             sheet.append_row([id_despesa, str(data), valor, estabelecimento, file.get('id')])
+            st.success("Nota salva!")
             
-            st.success("Nota salva no Drive com sucesso!")
-            
-    if st.button("Sair/Logout"):
+    if st.button("Sair"):
         st.session_state.clear()
         st.rerun()
