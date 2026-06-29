@@ -35,17 +35,22 @@ foto = st.camera_input("Tirar Foto da Nota")
 
 if st.button("Enviar Nota"):
     if foto and id_despesa and estabelecimento:
-        # 1. Definir o nome do arquivo
+        # ID da pasta onde as fotos serão salvas
+        FOLDER_ID = "1hjgjPItmUnuWyP4htMEk91tJS2XICSGj"
+        
         nome_arquivo = f"{data}_{valor}_{estabelecimento}.jpg".replace(" ", "_")
         
-        # 2. Salvar foto no Google Drive com MediaIoBaseUpload
-        file_metadata = {'name': nome_arquivo}
+        # Salvar foto no Google Drive dentro da pasta especificada
+        file_metadata = {
+            'name': nome_arquivo,
+            'parents': [FOLDER_ID]
+        }
         media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg', resumable=True)
-        drive_file = drive_service.files().create(body=file_metadata, media_body=media).execute()
+        drive_file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
         
-        # 3. Adicionar linha na planilha "Controle de Notas"
-        sheet = gc.open("Controle de Notas").sheet1
-        sheet.append_row([id_despesa, str(data), valor, estabelecimento, categoria, drive_file['id']])
+        # Adicionar linha na planilha "Controle de notas APP"
+        sheet = gc.open("Controle de notas APP").sheet1
+        sheet.append_row([id_despesa, str(data), valor, estabelecimento, categoria, drive_file.get('id')])
         
         st.success(f"Nota {id_despesa} enviada com sucesso!")
     else:
