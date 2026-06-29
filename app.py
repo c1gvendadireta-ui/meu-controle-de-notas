@@ -2,6 +2,7 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 import io
 
 # Configuração da API Google lendo chaves individuais do Streamlit Secrets
@@ -34,15 +35,15 @@ foto = st.camera_input("Tirar Foto da Nota")
 
 if st.button("Enviar Nota"):
     if foto and id_despesa and estabelecimento:
-        # Nome do arquivo conforme sua regra
+        # 1. Definir o nome do arquivo
         nome_arquivo = f"{data}_{valor}_{estabelecimento}.jpg".replace(" ", "_")
         
-        # Salvar foto no Drive
+        # 2. Salvar foto no Google Drive com MediaIoBaseUpload
         file_metadata = {'name': nome_arquivo}
-        media = io.BytesIO(foto.getvalue())
+        media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg', resumable=True)
         drive_file = drive_service.files().create(body=file_metadata, media_body=media).execute()
         
-        # Adicionar linha na planilha "Controle de Notas"
+        # 3. Adicionar linha na planilha "Controle de Notas"
         sheet = gc.open("Controle de Notas").sheet1
         sheet.append_row([id_despesa, str(data), valor, estabelecimento, categoria, drive_file['id']])
         
