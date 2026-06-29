@@ -52,34 +52,36 @@ else:
         foto = st.camera_input("Tirar Foto")
         if st.button("Enviar Nota"):
             if foto and id_despesa:
+                # NOME DA IMAGEM AGORA UTILIZA O VALOR
+                nome_arquivo = f"{id_despesa}_{str(data)}_R${valor:.2f}.jpg"
+                
                 media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg')
-                file = drive_service.files().create(body={'name': f"{id_despesa}.jpg"}, media_body=media).execute()
+                file = drive_service.files().create(body={'name': nome_arquivo}, media_body=media).execute()
                 sheet.append_row([id_despesa, str(data), valor, estabelecimento, categoria, file.get('id')])
-                st.success("Nota salva!")
+                st.success(f"Nota salva como: {nome_arquivo}")
 
     with tab2:
         rows = sheet.get_all_records()
         if rows:
-            # Seleção da nota
-            lista_ids = [f"{r['ID']} - {r['Estabelecimento']} ({r['Data']})" for r in rows]
+            # LISTA AGORA EXIBE VALOR EM DESTAQUE
+            lista_ids = [f"{r['ID']} - R$ {r['Valor']} ({r['Data']})" for r in rows]
             escolha = st.selectbox("Selecione a nota para visualizar:", lista_ids)
             idx = lista_ids.index(escolha)
             nota = rows[idx]
 
-            st.write(f"**Valor:** {nota['Valor']} | **Categoria:** {nota['Categoria (Refeição/Lanche/Outros)']}")
+            st.write(f"**Estabelecimento:** {nota['Estabelecimento']} | **Categoria:** {nota['Categoria (Refeição/Lanche/Outros)']}")
             
-            # Visualização da imagem
             file_id = nota['Link_Foto']
             try:
                 img_data = drive_service.files().get_media(fileId=file_id).execute()
                 st.image(img_data, caption="Nota Fiscal")
-                st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['ID']}.jpg", mime="image/jpeg")
+                # DOWNLOAD COM NOME CONTENDO O VALOR
+                st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['ID']}_{nota['Data']}_R${nota['Valor']}.jpg", mime="image/jpeg")
             except Exception:
                 st.error("Não foi possível carregar a imagem.")
 
-            # Botão de apagar
             if st.button("APAGAR ESTA NOTA"):
-                sheet.delete_rows(idx + 2) # +2 pois gspread usa base 1 e considera header
+                sheet.delete_rows(idx + 2)
                 drive_service.files().delete(fileId=file_id).execute()
                 st.success("Nota apagada!")
                 st.rerun()
