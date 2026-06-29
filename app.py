@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import io
 
-# Configuração da API Google
+# Configuração da API
 scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 creds_dict = {
     "type": st.secrets["type"],
@@ -20,7 +20,6 @@ creds_dict = {
     "client_x509_cert_url": st.secrets["client_x509_cert_url"]
 }
 
-# Inicialização
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gc = gspread.authorize(creds)
 drive_service = build('drive', 'v3', credentials=creds)
@@ -37,20 +36,26 @@ foto = st.camera_input("Tirar Foto da Nota")
 if st.button("Enviar Nota"):
     if foto and id_despesa and estabelecimento:
         try:
+            # ID da sua pasta
             FOLDER_ID = "1hjgjPItmUnuWyP4htMEk91tJS2XICSGj"
             nome_arquivo = f"{data}_{valor}_{estabelecimento}.jpg".replace(" ", "_")
             
-            # Upload para o Drive
+            # Ajuste: usamos 'supportsAllDrives=True' para garantir que funcione em diferentes contas
             file_metadata = {'name': nome_arquivo, 'parents': [FOLDER_ID]}
             media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg', resumable=True)
-            drive_file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
             
-            # Adicionar à planilha
+            drive_file = drive_service.files().create(
+                body=file_metadata, 
+                media_body=media, 
+                fields='id',
+                supportsAllDrives=True
+            ).execute()
+            
             sheet = gc.open("Controle de notas APP").sheet1
             sheet.append_row([id_despesa, str(data), valor, estabelecimento, categoria, drive_file.get('id')])
             
-            st.success(f"Nota {id_despesa} enviada com sucesso!")
+            st.success("Nota enviada com sucesso!")
         except Exception as e:
-            st.error(f"Erro ao conectar com o Google: {e}")
+            st.error(f"Erro ao salvar: {e}")
     else:
         st.error("Preencha todos os campos e tire a foto.")
