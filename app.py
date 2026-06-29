@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import io
 
-# Configuração da API Google lendo chaves individuais do Streamlit Secrets
+# Configuração da API Google
 scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 creds_dict = {
     "type": st.secrets["type"],
@@ -19,14 +19,15 @@ creds_dict = {
     "auth_provider_x509_cert_url": st.secrets["auth_provider_x509_cert_url"],
     "client_x509_cert_url": st.secrets["client_x509_cert_url"]
 }
+
+# Inicialização
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gc = gspread.authorize(creds)
 drive_service = build('drive', 'v3', credentials=creds)
 
 st.title("Controle de Notas")
 
-# Campos do formulário
-id_despesa = st.text_input("ID da Despesa (ex: Café, Almoço)")
+id_despesa = st.text_input("ID da Despesa")
 valor = st.number_input("Valor", min_value=0.0, format="%.2f")
 data = st.date_input("Data")
 estabelecimento = st.text_input("Estabelecimento")
@@ -35,23 +36,21 @@ foto = st.camera_input("Tirar Foto da Nota")
 
 if st.button("Enviar Nota"):
     if foto and id_despesa and estabelecimento:
-        # ID da pasta onde as fotos serão salvas
-        FOLDER_ID = "1hjgjPItmUnuWyP4htMEk91tJS2XICSGj"
-        
-        nome_arquivo = f"{data}_{valor}_{estabelecimento}.jpg".replace(" ", "_")
-        
-        # Salvar foto no Google Drive dentro da pasta especificada
-        file_metadata = {
-            'name': nome_arquivo,
-            'parents': [FOLDER_ID]
-        }
-        media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg', resumable=True)
-        drive_file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-        
-        # Adicionar linha na planilha "Controle de notas APP"
-        sheet = gc.open("Controle de notas APP").sheet1
-        sheet.append_row([id_despesa, str(data), valor, estabelecimento, categoria, drive_file.get('id')])
-        
-        st.success(f"Nota {id_despesa} enviada com sucesso!")
+        try:
+            FOLDER_ID = "1hjgjPItmUnuWyP4htMEk91tJS2XICSGj"
+            nome_arquivo = f"{data}_{valor}_{estabelecimento}.jpg".replace(" ", "_")
+            
+            # Upload para o Drive
+            file_metadata = {'name': nome_arquivo, 'parents': [FOLDER_ID]}
+            media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg', resumable=True)
+            drive_file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            
+            # Adicionar à planilha
+            sheet = gc.open("Controle de notas APP").sheet1
+            sheet.append_row([id_despesa, str(data), valor, estabelecimento, categoria, drive_file.get('id')])
+            
+            st.success(f"Nota {id_despesa} enviada com sucesso!")
+        except Exception as e:
+            st.error(f"Erro ao conectar com o Google: {e}")
     else:
-        st.error("Por favor, preencha todos os campos e tire a foto.")
+        st.error("Preencha todos os campos e tire a foto.")
