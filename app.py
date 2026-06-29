@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import io
 
-# URL exata cadastrada no Google Cloud Console
+# URL EXATA cadastrada no Console do Google (sem a barra no final)
 REDIRECT_URL = "https://meu-controle-de-notas-reyhlqux3cv4vlwz5qpxjx.streamlit.app"
 
 def get_flow():
@@ -25,27 +25,33 @@ def get_flow():
 
 st.title("Controle de Notas")
 
-# Gerenciamento da Sessão e Login
+# Gerenciamento da Sessão
 if "creds" not in st.session_state:
     query_params = st.query_params
     
-    # Se o Google retornou o código de autorização
     if "code" in query_params:
-        flow = get_flow()
-        flow.fetch_token(code=query_params["code"])
-        st.session_state.creds = flow.credentials
-        
-        # Remove o código da URL para evitar InvalidGrantError
-        st.query_params.clear()
-        st.rerun()
-        
+        try:
+            # Tenta processar o código de autenticação
+            flow = get_flow()
+            flow.fetch_token(code=query_params["code"])
+            st.session_state.creds = flow.credentials
+            
+            # Limpa a URL e reinicia para entrar no estado logado
+            st.query_params.clear()
+            st.rerun()
+        except Exception:
+            # Se falhar (ex: código já usado), limpa tudo
+            st.query_params.clear()
+            st.session_state.clear()
+            st.error("Erro na autenticação. Clique no link abaixo e tente novamente.")
+            st.stop()
     else:
-        # Exibe o botão de login se não estiver autenticado
+        # Mostra o botão para iniciar o fluxo
         flow = get_flow()
         auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
         st.markdown(f"[**Clique aqui para fazer login no Google e autorizar o app**]({auth_url})")
 else:
-    # App autenticado: processa uploads e planilhas
+    # --- ÁREA LOGADA DO APP ---
     creds = st.session_state.creds
     drive_service = build('drive', 'v3', credentials=creds)
     gc = gspread.authorize(creds)
@@ -58,13 +64,17 @@ else:
 
     if st.button("Enviar Nota"):
         if foto and id_despesa:
-            # Upload da foto para o Drive
+            # Upload da foto
             file_metadata = {'name': f"{id_despesa}.jpg"}
             media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg')
             file = drive_service.files().create(body=file_metadata, media_body=media).execute()
             
-            # Adiciona dados na planilha
+            # Salva na planilha
             sheet = gc.open("Controle de notas APP").sheet1
             sheet.append_row([id_despesa, str(data), valor, estabelecimento, file.get('id')])
             
             st.success("Nota salva no Drive com sucesso!")
+            
+    if st.button("Sair/Logout"):
+        st.session_state.clear()
+        st.rerun()
