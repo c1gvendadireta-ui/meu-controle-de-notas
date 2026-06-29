@@ -4,8 +4,13 @@ from oauth2client.service_account import ServiceAccountCredentials
 import base64
 import io
 
-# Configuração da API (apenas Sheets, sem Drive)
-scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/spreadsheets']
+# Escopos expandidos para garantir que o Gspread tenha permissão total
+scope = [
+    'https://spreadsheets.google.com/feeds',
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive'
+]
+
 creds_dict = {
     "type": st.secrets["type"],
     "project_id": st.secrets["project_id"],
@@ -38,20 +43,20 @@ if st.button("Enviar Nota"):
             foto_bytes = foto.getvalue()
             foto_base64 = base64.b64encode(foto_bytes).decode('utf-8')
             
-            # Salva na planilha "Controle de notas APP"
+            # Abre a planilha pelo nome
             sheet = gc.open("Controle de notas APP").sheet1
             
-            # Adiciona os dados e a string da imagem (tão longa quanto necessário)
+            # Salva os dados na planilha
             sheet.append_row([
                 id_despesa, 
                 str(data), 
                 valor, 
                 estabelecimento, 
                 categoria, 
-                foto_base64 # A foto está salva aqui!
+                foto_base64
             ])
             
-            st.success("Nota enviada com sucesso! A foto foi salva na planilha.")
+            st.success("Nota enviada com sucesso! Foto salva na planilha.")
         except Exception as e:
             st.error(f"Erro ao salvar: {e}")
     else:
