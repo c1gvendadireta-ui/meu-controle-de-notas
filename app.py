@@ -1,88 +1,62 @@
 import streamlit as st
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import base64
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 import io
 
-# Configuração da API
-scope = [
-    'https://spreadsheets.google.com/feeds',
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/drive'
-]
+# Configuração do OAuth Flow
+def get_flow():
+    return Flow.from_client_config(
+        {
+            "web": {
+                "client_id": st.secrets["GOOGLE"]["client_id"],
+                "client_secret": st.secrets["GOOGLE"]["client_secret"],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [st.secrets["GOOGLE"]["redirect_uri"]],
+            }
+        },
+        scopes=['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/spreadsheets']
+    )
 
-creds_dict = {
-    "type": st.secrets["type"],
-    "project_id": st.secrets["project_id"],
-    "private_key_id": st.secrets["private_key_id"],
-    "private_key": st.secrets["private_key"].replace("\\n", "\n"),
-    "client_email": st.secrets["client_email"],
-    "client_id": st.secrets["client_id"],
-    "auth_uri": st.secrets["auth_uri"],
-    "token_uri": st.secrets["token_uri"],
-    "auth_provider_x509_cert_url": st.secrets["auth_provider_x509_cert_url"],
-    "client_x509_cert_url": st.secrets["client_x509_cert_url"]
-}
+st.title("Controle de Notas (Web-Auth)")
 
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-gc = gspread.authorize(creds)
+# 1. Fluxo de Login
+if "creds" not in st.session_state:
+    flow = get_flow()
+    auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
+    st.markdown(f"[**Clique aqui para fazer login no Google e autorizar o app**]({auth_url})")
 
-st.title("Controle de Notas")
+    # Captura o código da URL
+    query_params = st.query_params
+    if "code" in query_params:
+        flow.fetch_token(code=query_params["code"])
+        st.session_state.creds = flow.credentials
+        st.rerun()
+else:
+    # 2. App Logado
+    creds = st.session_state.creds
+    drive_service = build('drive', 'v3', credentials=creds)
+    gc = gspread.authorize(creds)
 
-# Campos do formulário
-id_despesa = st.text_input("ID da Despesa")
-valor = st.number_input("Valor", min_value=0.0, format="%.2f")
-data = st.date_input("Data")
-estabelecimento = st.text_input("Estabelecimento")
-categoria = st.selectbox("Categoria", ["Refeição", "Lanche", "Outros"])
-foto = st.camera_input("Tirar Foto da Nota")
+    id_despesa = st.text_input("ID da Despesa")
+    valor = st.number_input("Valor", min_value=0.0, format="%.2f")
+    data = st.date_input("Data")
+    estabelecimento = st.text_input("Estabelecimento")
+    foto = st.camera_input("Tirar Foto")
 
-# Lógica de Envio
-if st.button("Enviar Nota"):
-    if foto and id_despesa and estabelecimento:
-        try:
-            # Converte a imagem em texto (Base64) para salvar na célula
-            foto_bytes = foto.getvalue()
-            foto_base64 = base64.b64encode(foto_bytes).decode('utf-8')
+    if st.button("Enviar Nota"):
+        if foto and id_despesa:
+            # Upload para o seu Drive pessoal
+            file_metadata = {'name': f"{id_despesa}.jpg"}
+            media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg')
             
-            # Abre a planilha pelo nome
+            # Salva na raiz do seu Drive (ou troque o ID da pasta se preferir)
+            file = drive_service.files().create(body=file_metadata, media_body=media).execute()
+            
+            # Salva na planilha
             sheet = gc.open("Controle de notas APP").sheet1
+            sheet.append_row([id_despesa, str(data), valor, estabelecimento, file.get('id')])
             
-            # Salva os dados na planilha
-            sheet.append_row([
-                id_despesa, 
-                str(data), 
-                valor, 
-                estabelecimento, 
-                categoria, 
-                foto_base64
-            ])
-            
-            st.success("Nota enviada com sucesso! Foto salva na planilha.")
-        except Exception as e:
-            st.error(f"Erro ao salvar: {e}")
-    else:
-        st.error("Preencha todos os campos e tire a foto.")
-
-# Lógica de Download
-st.divider()
-if st.checkbox("Ver notas salvas para download"):
-    try:
-        sheet = gc.open("Controle de notas APP").sheet1
-        data_rows = sheet.get_all_values()[1:]  # Pula o cabeçalho
-        
-        for row in data_rows:
-            if len(row) >= 6:
-                id_nota, data, valor, estab, cat, b64_foto = row
-                st.write(f"Nota: {id_nota} - {estab} (R$ {valor})")
-                
-                # Decodifica e cria botão de download
-                img_bytes = base64.b64decode(b64_foto)
-                st.download_button(
-                    label=f"Baixar {id_nota}_{data}.jpg",
-                    data=img_bytes,
-                    file_name=f"{id_nota}_{data}.jpg",
-                    mime="image/jpeg"
-                )
-    except Exception as e:
-        st.error(f"Erro ao carregar notas: {e}")
+            st.success("Nota salva com sucesso no seu Drive!")
