@@ -1,12 +1,11 @@
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+import base64
 import io
 
-# Configuração da API
-scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+# Configuração da API (apenas Sheets, sem Drive)
+scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/spreadsheets']
 creds_dict = {
     "type": st.secrets["type"],
     "project_id": st.secrets["project_id"],
@@ -22,7 +21,6 @@ creds_dict = {
 
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gc = gspread.authorize(creds)
-drive_service = build('drive', 'v3', credentials=creds)
 
 st.title("Controle de Notas")
 
@@ -36,25 +34,24 @@ foto = st.camera_input("Tirar Foto da Nota")
 if st.button("Enviar Nota"):
     if foto and id_despesa and estabelecimento:
         try:
-            # ID da sua pasta
-            FOLDER_ID = "1hjgjPItmUnuWyP4htMEk91tJS2XICSGj"
-            nome_arquivo = f"{data}_{valor}_{estabelecimento}.jpg".replace(" ", "_")
+            # Converte a imagem em texto (Base64)
+            foto_bytes = foto.getvalue()
+            foto_base64 = base64.b64encode(foto_bytes).decode('utf-8')
             
-            # Ajuste: usamos 'supportsAllDrives=True' para garantir que funcione em diferentes contas
-            file_metadata = {'name': nome_arquivo, 'parents': [FOLDER_ID]}
-            media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg', resumable=True)
-            
-            drive_file = drive_service.files().create(
-                body=file_metadata, 
-                media_body=media, 
-                fields='id',
-                supportsAllDrives=True
-            ).execute()
-            
+            # Salva na planilha "Controle de notas APP"
             sheet = gc.open("Controle de notas APP").sheet1
-            sheet.append_row([id_despesa, str(data), valor, estabelecimento, categoria, drive_file.get('id')])
             
-            st.success("Nota enviada com sucesso!")
+            # Adiciona os dados e a string da imagem (tão longa quanto necessário)
+            sheet.append_row([
+                id_despesa, 
+                str(data), 
+                valor, 
+                estabelecimento, 
+                categoria, 
+                foto_base64 # A foto está salva aqui!
+            ])
+            
+            st.success("Nota enviada com sucesso! A foto foi salva na planilha.")
         except Exception as e:
             st.error(f"Erro ao salvar: {e}")
     else:
