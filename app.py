@@ -31,31 +31,30 @@ if "creds" not in st.session_state:
     
     if "code" in query_params:
         try:
-            # Tenta processar o código de autenticação
             flow = get_flow()
             flow.fetch_token(code=query_params["code"])
             st.session_state.creds = flow.credentials
-            
-            # Limpa a URL e reinicia para entrar no estado logado
             st.query_params.clear()
             st.rerun()
-        except Exception:
-            # Se falhar (ex: código já usado), limpa tudo
-            st.query_params.clear()
-            st.session_state.clear()
-            st.error("Erro na autenticação. Clique no link abaixo e tente novamente.")
-            st.stop()
-    else:
-        # Mostra o botão para iniciar o fluxo
-        flow = get_flow()
-        auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
-        st.markdown(f"[**Clique aqui para fazer login no Google e autorizar o app**]({auth_url})")
+        except Exception as e:
+            st.error(f"Erro na autenticação: {e}")
+            if st.button("Tentar Novamente"):
+                st.query_params.clear()
+                st.rerun()
+    
+    # Exibe o link de login
+    flow = get_flow()
+    auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
+    st.markdown(f"### [CLIQUE AQUI PARA FAZER LOGIN NO GOOGLE]({auth_url})")
+
 else:
     # --- ÁREA LOGADA DO APP ---
     creds = st.session_state.creds
     drive_service = build('drive', 'v3', credentials=creds)
     gc = gspread.authorize(creds)
 
+    st.success("Autenticado com sucesso!")
+    
     id_despesa = st.text_input("ID da Despesa")
     valor = st.number_input("Valor", min_value=0.0, format="%.2f")
     data = st.date_input("Data")
