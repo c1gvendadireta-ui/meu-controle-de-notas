@@ -4,10 +4,21 @@ from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
 import io
 
-# Configuração da API Google usando os segredos configurados no Streamlit
-SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-creds_dict = st.secrets["gcp_service_account"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
+# Configuração da API Google lendo chaves individuais do Streamlit Secrets
+scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+creds_dict = {
+    "type": st.secrets["type"],
+    "project_id": st.secrets["project_id"],
+    "private_key_id": st.secrets["private_key_id"],
+    "private_key": st.secrets["private_key"].replace("\\n", "\n"),
+    "client_email": st.secrets["client_email"],
+    "client_id": st.secrets["client_id"],
+    "auth_uri": st.secrets["auth_uri"],
+    "token_uri": st.secrets["token_uri"],
+    "auth_provider_x509_cert_url": st.secrets["auth_provider_x509_cert_url"],
+    "client_x509_cert_url": st.secrets["client_x509_cert_url"]
+}
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gc = gspread.authorize(creds)
 drive_service = build('drive', 'v3', credentials=creds)
 
@@ -23,15 +34,15 @@ foto = st.camera_input("Tirar Foto da Nota")
 
 if st.button("Enviar Nota"):
     if foto and id_despesa and estabelecimento:
-        # 1. Definir o nome do arquivo conforme sua regra
+        # Nome do arquivo conforme sua regra
         nome_arquivo = f"{data}_{valor}_{estabelecimento}.jpg".replace(" ", "_")
         
-        # 2. Salvar a foto no Drive (na raiz ou ID de pasta específico)
+        # Salvar foto no Drive
         file_metadata = {'name': nome_arquivo}
         media = io.BytesIO(foto.getvalue())
         drive_file = drive_service.files().create(body=file_metadata, media_body=media).execute()
         
-        # 3. Adicionar linha na planilha "Controle de Notas"
+        # Adicionar linha na planilha "Controle de Notas"
         sheet = gc.open("Controle de Notas").sheet1
         sheet.append_row([id_despesa, str(data), valor, estabelecimento, categoria, drive_file['id']])
         
