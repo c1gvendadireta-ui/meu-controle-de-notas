@@ -7,11 +7,21 @@ from googleapiclient.http import MediaIoBaseUpload
 import io
 from google.oauth2.credentials import Credentials
 
+# URL exata cadastrada no Console
 REDIRECT_URL = "https://meu-controle-de-notas-reyhlqux3cv4vlwz5qpxjx.streamlit.app"
 
-# Função para criar hash da senha
 def hash_pass(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
+def get_or_create_user_folder(drive_service, user_name):
+    query = f"name = '{user_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+    results = drive_service.files().list(q=query).execute().get('files', [])
+    if results:
+        return results[0]['id']
+    else:
+        folder_metadata = {'name': user_name, 'mimeType': 'application/vnd.google-apps.folder'}
+        folder = drive_service.files().create(body=folder_metadata).execute()
+        return folder.get('id')
 
 st.title("Controle de Notas")
 
@@ -36,72 +46,63 @@ else:
     gc = gspread.authorize(creds)
     sheet = gc.open("Controle de notas APP").sheet1
 
-    # Tela de Login Privado
-    st.subheader("Acesso do Usuário")
-    user_name = st.text_input("Seu Nome:")
-    user_password = st.text_input("Sua Senha:", type="password")
-    
-    # Carrega dados de usuários para validar
-    users_data = sheet.get_all_records()
-    
-    if st.button("Entrar"):
-        user_hash = hash_pass(user_password)
-        # Verifica se o usuário já existe e se a senha confere
-        user_exists = next((r for r in users_data if r['Usuario'] == user_name), None)
-        
-        if user_exists and user_exists['Senha_Hash'] != user_hash:
-            st.error("Senha incorreta!")
-        else:
-            st.session_state.logged_in_user = user_name
-            st.session_state.user_hash = user_hash
-            st.rerun()
-
-    if "logged_in_user" in st.session_state:
+    if "logged_in_user" not in st.session_state:
+        st.subheader("Acesso do Usuário")
+        user_name = st.text_input("Seu Nome:")
+        user_password = st.text_input("Sua Senha:", type="password")
+        if st.button("Entrar"):
+            users_data = sheet.get_all_records()
+            user_hash = hash_pass(user_password)
+            user_exists = next((r for r in users_data if r['Usuario'] == user_name), None)
+            if user_exists:
+                if user_exists['Senha_Hash'] == user_hash:
+                    st.session_state.logged_in_user = user_name
+                    st.rerun()
+                else:
+                    st.error("Senha incorreta!")
+            else:
+                sheet.append_row(["CADASTRO", "", 0, "", "", user_name, user_hash])
+                st.session_state.logged_in_user = user_name
+                st.success("Usuário cadastrado!")
+                st.rerun()
+    else:
         st.success(f"Bem-vindo, {st.session_state.logged_in_user}!")
-        
         tab1, tab2 = st.tabs(["Nova Nota", "Visualizar/Apagar Notas"])
-
         with tab1:
-            id_despesa = st.text_input("O que foi ? (jantar, almoço, etc)")
+            id_despesa = st.text_input("ID da Despesa (jantar, almoço, etc)")
             valor = st.number_input("Valor", min_value=0.0, format="%.2f")
             data = st.date_input("Data")
             estabelecimento = st.text_input("Estabelecimento")
             foto = st.camera_input("Tirar Foto")
-            
             if st.button("Enviar Nota"):
                 if foto and id_despesa:
-                    # Cria ou busca pasta do usuário
-                    folder_meta = {'name': st.session_state.logged_in_user, 'mimeType': 'application/vnd.google-apps.folder'}
-                    folder = drive_service.files().create(body=folder_meta).execute()
-                    
+                    folder_id = get_or_create_user_folder(drive_service, st.session_state.logged_in_user)
                     nome_arquivo = f"{id_despesa}_{str(data)}_R${valor:.2f}.jpg"
                     media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg')
-                    file = drive_service.files().create(body={'name': nome_arquivo, 'parents': [folder.get('id')]}, media_body=media).execute()
-                    
-                    # Salva com a senha protegida (apenas na primeira vez)
-                    sheet.append_row([id_despesa, str(data), valor, estabelecimento, file.get('id'), st.session_state.logged_in_user, st.session_state.user_hash])
-                    st.success("Nota salva com sucesso!")
-
+                    file = drive_service.files().create(body={'name': nome_arquivo, 'parents': [folder_id]}, media_body=media).execute()
+                    sheet.append_row([id_despesa, str(data), valor, estabelecimento, file.get('id'), st.session_state.logged_in_user, ""])
+                    st.success(f"Nota salva como: {nome_arquivo}")
         with tab2:
-            my_rows = [r for r in users_data if r['Usuario'] == st.session_state.logged_in_user]
-            if my_rows:
-                lista_ids = [f"{r['ID']} - R$ {r['Valor']} ({r['Data']})" for r in my_rows]
-                escolha = st.selectbox("Suas notas:", lista_ids)
-                nota = next(r for r in my_rows if f"{r['ID']} - R$ {r['Valor']} ({r['Data']})" == escolha)
-                
+            rows = sheet.get_all_records()
+            user_rows = [r for r in rows if r.get('Usuario') == st.session_state.logged_in_user]
+            if user_rows:
+                lista_ids = [f"{r['ID']} - R$ {r['Valor']} ({r['Data']})" for r in user_rows]
+                escolha = st.selectbox("Selecione sua nota:", lista_ids)
+                nota = next(r for r in user_rows if f"{r['ID']} - R$ {r['Valor']} ({r['Data']})" == escolha)
                 st.write(f"**Estabelecimento:** {nota['Estabelecimento']}")
                 file_id = nota['Link_Foto']
-                img_data = drive_service.files().get_media(fileId=file_id).execute()
-                st.image(img_data)
-                st.download_button("Baixar", data=img_data, file_name=f"{nota['ID']}.jpg")
-
-                if st.button("APAGAR"):
-                    # Lógica simplificada de deleção
-                    st.success("Nota apagada!")
-                    st.rerun()
-            else:
-                st.write("Nenhuma nota para este usuário.")
-
-    if st.button("Sair"):
-        for key in list(st.session_state.keys()): del st.session_state[key]
-        st.rerun()
+                try:
+                    img_data = drive_service.files().get_media(fileId=file_id).execute()
+                    st.image(img_data, caption="Nota Fiscal")
+                    st.download_button("Baixar", data=img_data, file_name=f"{nota['ID']}_{nota['Data']}_R${nota['Valor']}.jpg", mime="image/jpeg")
+                    if st.button("APAGAR ESTA NOTA"):
+                        row_idx = rows.index(nota) + 2
+                        sheet.delete_rows(row_idx)
+                        drive_service.files().delete(fileId=file_id).execute()
+                        st.success("Nota apagada!")
+                        st.rerun()
+                except Exception: st.error("Erro ao carregar imagem.")
+            else: st.write("Nenhuma nota encontrada.")
+        if st.button("Sair"):
+            for key in list(st.session_state.keys()): del st.session_state[key]
+            st.rerun()
