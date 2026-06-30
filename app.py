@@ -46,28 +46,36 @@ else:
 
     if "logged_in_user" not in st.session_state:
         st.subheader("Acesso do Usuário")
-        user_name = st.text_input("Seu Nome:")
+        user_name = st.text_input("Seu Nome ou Nome e Sobrenome:")
         user_password = st.text_input("Sua Senha:", type="password")
-        if st.button("Entrar"):
-            users_data = sheet_usuarios.get_all_records()
-            user_hash = hash_pass(user_password)
-            user_exists = next((r for r in users_data if r['Usuario'] == user_name), None)
-            if user_exists:
-                if user_exists['Senha_Hash'] == user_hash:
+        
+        col_entrar, col_cadastrar = st.columns(2)
+        with col_entrar:
+            if st.button("Entrar"):
+                users_data = sheet_usuarios.get_all_records()
+                user_hash = hash_pass(user_password)
+                user_exists = next((r for r in users_data if r['Usuario'] == user_name), None)
+                if user_exists and user_exists['Senha_Hash'] == user_hash:
                     st.session_state.logged_in_user = user_name
                     st.rerun()
-                else: st.error("Senha incorreta!")
-            else:
-                sheet_usuarios.append_row([user_name, user_hash])
-                st.session_state.logged_in_user = user_name
-                st.success("Usuário cadastrado!")
-                st.rerun()
+                else: st.error("Usuário não encontrado ou senha incorreta!")
+        with col_cadastrar:
+            if st.button("Cadastrar Novo Usuário"):
+                users_data = sheet_usuarios.get_all_records()
+                user_exists = next((r for r in users_data if r['Usuario'] == user_name), None)
+                if user_exists: st.error(f"O usuário '{user_name}' já existe! Use o botão 'Entrar'.")
+                elif not user_password: st.warning("Por favor, digite uma senha.")
+                else:
+                    sheet_usuarios.append_row([user_name, hash_pass(user_password)])
+                    st.session_state.logged_in_user = user_name
+                    st.success(f"Cadastro de '{user_name}' realizado!")
+                    st.rerun()
     else:
         st.success(f"Bem-vindo, {st.session_state.logged_in_user}!")
         tab1, tab2, tab3 = st.tabs(["Nova Nota", "Visualizar", "Lixeira"])
         
         with tab1:
-            id_despesa = st.text_input("ID da Despesa (jantar, almoço, etc)")
+            id_despesa = st.text_input("ID da Despesa")
             valor = st.number_input("Valor", min_value=0.0, format="%.2f")
             data = st.date_input("Data")
             estabelecimento = st.text_input("Estabelecimento")
@@ -75,32 +83,23 @@ else:
             if st.button("Enviar Nota"):
                 if foto and id_despesa:
                     folder_id = get_or_create_user_folder(drive_service, st.session_state.logged_in_user)
-                    nome_arquivo = f"{id_despesa}_{str(data)}_R${valor:.2f}.jpg"
-                    media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg')
-                    file = drive_service.files().create(body={'name': nome_arquivo, 'parents': [folder_id]}, media_body=media).execute()
+                    file = drive_service.files().create(body={'name': f"{id_despesa}.jpg", 'parents': [folder_id]}, media_body=MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg')).execute()
                     sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, file.get('id'), st.session_state.logged_in_user, "Ativo"])
-                    st.success(f"Nota salva como: {nome_arquivo}")
+                    st.success("Nota salva!")
         
         with tab2:
             all_notes = sheet_notas.get_all_records()
             user_rows = [r for r in all_notes if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Ativo"]
             if user_rows:
-                lista_ids = [f"{r['ID']} - R$ {r['Valor']} ({r['Data']})" for r in user_rows]
-                escolha = st.selectbox("Selecione sua nota:", lista_ids)
-                nota = next(r for r in user_rows if f"{r['ID']} - R$ {r['Valor']} ({r['Data']})" == escolha)
-                st.write(f"**Estabelecimento:** {nota['Estabelecimento']}")
-                file_id = nota['Link_Foto']
-                try:
-                    img_data = drive_service.files().get_media(fileId=file_id).execute()
-                    st.image(img_data, caption="Nota Fiscal")
-                    st.download_button("Baixar", data=img_data, file_name=f"{nota['ID']}.jpg", mime="image/jpeg")
-                    if st.button("Mover para Lixeira"):
-                        row_idx = all_notes.index(nota) + 2
-                        sheet_notas.update_cell(row_idx, 7, "Lixeira")
-                        st.success("Nota movida para a lixeira!")
-                        st.rerun()
-                except Exception: st.error("Erro ao carregar imagem.")
-            else: st.write("Nenhuma nota ativa encontrada.")
+                escolha = st.selectbox("Selecione sua nota:", [f"{r['ID']} - R$ {r['Valor']}" for r in user_rows])
+                nota = next(r for r in user_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha)
+                img_data = drive_service.files().get_media(fileId=nota['Link_Foto']).execute()
+                st.image(img_data)
+                if st.button("Mover para Lixeira"):
+                    row_idx = all_notes.index(nota) + 2
+                    sheet_notas.update_cell(row_idx, 7, "Lixeira")
+                    st.rerun()
+            else: st.write("Nenhuma nota ativa.")
             
         with tab3:
             all_notes = sheet_notas.get_all_records()
@@ -108,25 +107,19 @@ else:
             if trash_rows:
                 escolha_trash = st.selectbox("Notas na Lixeira:", [f"{r['ID']} - R$ {r['Valor']}" for r in trash_rows])
                 nota_trash = next(r for r in trash_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha_trash)
-                
-                # Visualizar/Baixar na Lixeira
                 img_data = drive_service.files().get_media(fileId=nota_trash['Link_Foto']).execute()
                 st.image(img_data)
-                st.download_button("Baixar da Lixeira", data=img_data, file_name=f"{nota_trash['ID']}.jpg")
-                
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("Restaurar Nota"):
                         row_idx = all_notes.index(nota_trash) + 2
                         sheet_notas.update_cell(row_idx, 7, "Ativo")
-                        st.success("Nota restaurada!")
                         st.rerun()
                 with col2:
                     if st.button("Excluir Definitivamente"):
                         row_idx = all_notes.index(nota_trash) + 2
                         sheet_notas.delete_rows(row_idx)
                         drive_service.files().delete(fileId=nota_trash['Link_Foto']).execute()
-                        st.success("Nota apagada!")
                         st.rerun()
             else: st.write("Lixeira vazia.")
                     
