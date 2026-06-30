@@ -45,12 +45,12 @@ else:
     sheet_notas = sh.worksheet("Notas")
 
     if "logged_in_user" not in st.session_state:
-        st.subheader("Acesso do Usuário")
-        user_name = st.text_input("Seu Nome ou Nome e Sobrenome:")
-        user_password = st.text_input("Sua Senha:", type="password")
+        st.subheader("Acesso ao Sistema")
+        modo = st.radio("O que deseja fazer?", ["Entrar com minha conta", "Criar novo cadastro"])
+        user_name = st.text_input("Nome:")
+        user_password = st.text_input("Senha:", type="password")
         
-        col_entrar, col_cadastrar = st.columns(2)
-        with col_entrar:
+        if modo == "Entrar com minha conta":
             if st.button("Entrar"):
                 users_data = sheet_usuarios.get_all_records()
                 user_hash = hash_pass(user_password)
@@ -58,17 +58,17 @@ else:
                 if user_exists and user_exists['Senha_Hash'] == user_hash:
                     st.session_state.logged_in_user = user_name
                     st.rerun()
-                else: st.error("Usuário não encontrado ou senha incorreta!")
-        with col_cadastrar:
-            if st.button("Cadastrar Novo Usuário"):
+                else: st.error("Nome ou senha incorretos!")
+        else:
+            if st.button("Finalizar Cadastro"):
                 users_data = sheet_usuarios.get_all_records()
                 user_exists = next((r for r in users_data if r['Usuario'] == user_name), None)
-                if user_exists: st.error(f"O usuário '{user_name}' já existe! Use o botão 'Entrar'.")
-                elif not user_password: st.warning("Por favor, digite uma senha.")
+                if user_exists: st.error("Este nome já está cadastrado! Selecione 'Entrar' acima.")
+                elif not user_password: st.warning("Digite uma senha.")
                 else:
                     sheet_usuarios.append_row([user_name, hash_pass(user_password)])
                     st.session_state.logged_in_user = user_name
-                    st.success(f"Cadastro de '{user_name}' realizado!")
+                    st.success("Cadastro realizado!")
                     st.rerun()
     else:
         st.success(f"Bem-vindo, {st.session_state.logged_in_user}!")
