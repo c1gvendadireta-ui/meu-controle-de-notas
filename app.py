@@ -95,6 +95,7 @@ else:
                 nota = next(r for r in user_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha)
                 img_data = drive_service.files().get_media(fileId=nota['Link_Foto']).execute()
                 st.image(img_data)
+                st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['ID']}.jpg", mime="image/jpeg")
                 if st.button("Mover para Lixeira"):
                     row_idx = all_notes.index(nota) + 2
                     sheet_notas.update_cell(row_idx, 7, "Lixeira")
@@ -109,6 +110,7 @@ else:
                 nota_trash = next(r for r in trash_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha_trash)
                 img_data = drive_service.files().get_media(fileId=nota_trash['Link_Foto']).execute()
                 st.image(img_data)
+                st.download_button("Baixar Foto da Lixeira", data=img_data, file_name=f"{nota_trash['ID']}.jpg", mime="image/jpeg")
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("Restaurar Nota"):
