@@ -40,7 +40,6 @@ else:
     creds = Credentials(token=st.session_state.creds["access_token"])
     drive_service = build('drive', 'v3', credentials=creds)
     gc = gspread.authorize(creds)
-    
     sh = gc.open("Controle de notas APP")
     sheet_usuarios = sh.worksheet("Usuarios")
     sheet_notas = sh.worksheet("Notas")
@@ -61,11 +60,11 @@ else:
             else:
                 sheet_usuarios.append_row([user_name, user_hash])
                 st.session_state.logged_in_user = user_name
-                st.success("Usuário cadastrado com sucesso!")
+                st.success("Usuário cadastrado!")
                 st.rerun()
     else:
         st.success(f"Bem-vindo, {st.session_state.logged_in_user}!")
-        tab1, tab2 = st.tabs(["Nova Nota", "Visualizar/Apagar Notas"])
+        tab1, tab2, tab3 = st.tabs(["Nova Nota", "Visualizar", "Lixeira"])
         
         with tab1:
             id_despesa = st.text_input("ID da Despesa (jantar, almoço, etc)")
@@ -79,13 +78,12 @@ else:
                     nome_arquivo = f"{id_despesa}_{str(data)}_R${valor:.2f}.jpg"
                     media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg')
                     file = drive_service.files().create(body={'name': nome_arquivo, 'parents': [folder_id]}, media_body=media).execute()
-                    # Colunas: ID, Data, Valor, Estabelecimento, Link_Foto, Usuario
-                    sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, file.get('id'), st.session_state.logged_in_user])
+                    sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, file.get('id'), st.session_state.logged_in_user, "Ativo"])
                     st.success(f"Nota salva como: {nome_arquivo}")
         
         with tab2:
             all_notes = sheet_notas.get_all_records()
-            user_rows = [r for r in all_notes if r.get('Usuario') == st.session_state.logged_in_user]
+            user_rows = [r for r in all_notes if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Ativo"]
             if user_rows:
                 lista_ids = [f"{r['ID']} - R$ {r['Valor']} ({r['Data']})" for r in user_rows]
                 escolha = st.selectbox("Selecione sua nota:", lista_ids)
@@ -95,16 +93,26 @@ else:
                 try:
                     img_data = drive_service.files().get_media(fileId=file_id).execute()
                     st.image(img_data, caption="Nota Fiscal")
-                    st.download_button("Baixar", data=img_data, file_name=f"{nota['ID']}_{nota['Data']}_R${nota['Valor']}.jpg", mime="image/jpeg")
-                    if st.button("APAGAR ESTA NOTA"):
+                    st.download_button("Baixar", data=img_data, file_name=f"{nota['ID']}.jpg", mime="image/jpeg")
+                    if st.button("Mover para Lixeira"):
                         row_idx = all_notes.index(nota) + 2
-                        sheet_notas.delete_rows(row_idx)
-                        drive_service.files().delete(fileId=file_id).execute()
-                        st.success("Nota apagada!")
+                        sheet_notas.update_cell(row_idx, 7, "Lixeira")
+                        st.success("Nota movida para a lixeira!")
                         st.rerun()
                 except Exception: st.error("Erro ao carregar imagem.")
-            else: st.write("Nenhuma nota encontrada.")
+            else: st.write("Nenhuma nota ativa encontrada.")
             
+        with tab3:
+            trash_rows = [r for r in sheet_notas.get_all_records() if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Lixeira"]
+            for nota in trash_rows:
+                if st.button(f"Excluir definitivamente: {nota['ID']} - R$ {nota['Valor']}"):
+                    all_rows = sheet_notas.get_all_records()
+                    row_idx = all_rows.index(nota) + 2
+                    sheet_notas.delete_rows(row_idx)
+                    drive_service.files().delete(fileId=nota['Link_Foto']).execute()
+                    st.success("Nota apagada definitivamente!")
+                    st.rerun()
+                    
         if st.button("Sair"):
             for key in list(st.session_state.keys()): del st.session_state[key]
             st.rerun()
