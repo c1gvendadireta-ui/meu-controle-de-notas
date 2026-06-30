@@ -103,15 +103,32 @@ else:
             else: st.write("Nenhuma nota ativa encontrada.")
             
         with tab3:
-            trash_rows = [r for r in sheet_notas.get_all_records() if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Lixeira"]
-            for nota in trash_rows:
-                if st.button(f"Excluir definitivamente: {nota['ID']} - R$ {nota['Valor']}"):
-                    all_rows = sheet_notas.get_all_records()
-                    row_idx = all_rows.index(nota) + 2
-                    sheet_notas.delete_rows(row_idx)
-                    drive_service.files().delete(fileId=nota['Link_Foto']).execute()
-                    st.success("Nota apagada definitivamente!")
-                    st.rerun()
+            all_notes = sheet_notas.get_all_records()
+            trash_rows = [r for r in all_notes if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Lixeira"]
+            if trash_rows:
+                escolha_trash = st.selectbox("Notas na Lixeira:", [f"{r['ID']} - R$ {r['Valor']}" for r in trash_rows])
+                nota_trash = next(r for r in trash_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha_trash)
+                
+                # Visualizar/Baixar na Lixeira
+                img_data = drive_service.files().get_media(fileId=nota_trash['Link_Foto']).execute()
+                st.image(img_data)
+                st.download_button("Baixar da Lixeira", data=img_data, file_name=f"{nota_trash['ID']}.jpg")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Restaurar Nota"):
+                        row_idx = all_notes.index(nota_trash) + 2
+                        sheet_notas.update_cell(row_idx, 7, "Ativo")
+                        st.success("Nota restaurada!")
+                        st.rerun()
+                with col2:
+                    if st.button("Excluir Definitivamente"):
+                        row_idx = all_notes.index(nota_trash) + 2
+                        sheet_notas.delete_rows(row_idx)
+                        drive_service.files().delete(fileId=nota_trash['Link_Foto']).execute()
+                        st.success("Nota apagada!")
+                        st.rerun()
+            else: st.write("Lixeira vazia.")
                     
         if st.button("Sair"):
             for key in list(st.session_state.keys()): del st.session_state[key]
