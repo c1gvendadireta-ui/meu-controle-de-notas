@@ -62,8 +62,7 @@ if "logged_in_user" not in st.session_state:
 else:
     # Assinatura de desenvolvedor na barra lateral
     st.sidebar.markdown("### Sobre o App")
-    st.sidebar.write("Desenvolvido por: Raphael Dionísio")
-    st.sidebar.markdown("[Entre em contato via e-mail](mailto:raphael.dionisio@technipfmc.com)")
+    st.sidebar.markdown("Desenvolvido por: [Raphael Dionisio](mailto:raphael.dionisio@technipfmc.com)")
     
     st.success(f"Bem-vindo, {st.session_state.logged_in_user}!")
     tab1, tab2, tab3 = st.tabs(["Nova Nota", "Visualizar", "Lixeira"])
