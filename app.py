@@ -23,7 +23,6 @@ sheet_notas = sh.worksheet("Notas")
 def hash_pass(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Função auxiliar para garantir que o valor seja sempre string com 2 casas decimais
 def formatar_valor(v):
     try:
         return f"{float(v):.2f}"
@@ -83,10 +82,7 @@ else:
     
     with tab1:
         tipo_despesa = st.selectbox("Tipo de Despesa", ["Café", "Almoço", "Jantar", "Lanche", "Transporte", "Outros"])
-        id_despesa = tipo_despesa
-        if tipo_despesa == "Outros":
-            id_despesa = st.text_input("Especifique a despesa:")
-            
+        id_despesa = tipo_despesa if tipo_despesa != "Outros" else st.text_input("Especifique:")
         valor = st.number_input("Valor", min_value=0.0, format="%.2f")
         data = st.date_input("Data")
         estabelecimento = st.text_input("Estabelecimento")
@@ -96,8 +92,7 @@ else:
             if foto and id_despesa:
                 try:
                     valor_str = formatar_valor(valor)
-                    data_str = data.strftime('%d/%m/%Y')
-                    # Nome do arquivo: Data_Valor_ID
+                    # Nome formatado: DD-MM-YYYY_Valor_Tipo
                     nome_personalizado = f"{data.strftime('%d-%m-%Y')}_{valor_str}_{id_despesa}"
                     
                     response = requests.post(
@@ -105,60 +100,44 @@ else:
                         params={"key": IMGBB_API_KEY, "name": nome_personalizado},
                         files={"image": foto.getvalue()}
                     )
-                    data_json = response.json()
-                    url_foto = data_json['data']['url']
+                    url_foto = response.json()['data']['url']
                     
-                    sheet_notas.append_row([id_despesa, str(data), f"'{valor_str}", estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo"])
+                    # Salva sem o apóstrofo
+                    sheet_notas.append_row([id_despesa, data.strftime('%d/%m/%Y'), valor_str, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo"])
                     st.success("Nota salva!")
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
-            else:
-                st.warning("Preencha o ID/Tipo e tire a foto.")
     
     with tab2:
         all_notes = sheet_notas.get_all_records()
-        for r in all_notes: r['Valor'] = formatar_valor(r['Valor'])
         user_rows = [r for r in all_notes if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Ativo"]
         if user_rows:
-            # Formato no selectbox: DD/MM/YYYY - R$ Valor - ID
-            escolha = st.selectbox("Selecione sua nota:", [f"{r['Data']} - R$ {r['Valor'].replace('.', ',')} - {r['ID']}" for r in user_rows])
-            nota = next(r for r in user_rows if f"{r['Data']} - R$ {r['Valor'].replace('.', ',')} - {r['ID']}" == escolha)
+            # Exibe: Data - R$ Valor - ID
+            escolha = st.selectbox("Selecione sua nota:", [f"{r['Data']} - R$ {r['Valor']} - {r['ID']}" for r in user_rows])
+            nota = next(r for r in user_rows if f"{r['Data']} - R$ {r['Valor']} - {r['ID']}" == escolha)
             st.image(nota['Link_Foto'])
             
             img_data = requests.get(nota['Link_Foto']).content
-            st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['Data'].replace('/', '-')}_R${nota['Valor']}_{nota['ID']}.jpg", mime="image/jpeg")
+            st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['Data'].replace('/', '-')}_R${nota['Valor']}.jpg", mime="image/jpeg")
             
             if st.button("Mover para Lixeira"):
-                row_idx = all_notes.index(nota) + 2
-                sheet_notas.update_cell(row_idx, 7, "Lixeira")
+                sheet_notas.update_cell(all_notes.index(nota) + 2, 7, "Lixeira")
                 st.rerun()
-        else: st.write("Nenhuma nota ativa.")
-        
+    
     with tab3:
         all_notes = sheet_notas.get_all_records()
-        for r in all_notes: r['Valor'] = formatar_valor(r['Valor'])
         trash_rows = [r for r in all_notes if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Lixeira"]
         if trash_rows:
-            escolha_trash = st.selectbox("Notas na Lixeira:", [f"{r['Data']} - R$ {r['Valor'].replace('.', ',')} - {r['ID']}" for r in trash_rows])
-            nota_trash = next(r for r in trash_rows if f"{r['Data']} - R$ {r['Valor'].replace('.', ',')} - {r['ID']}" == escolha_trash)
+            escolha_trash = st.selectbox("Notas na Lixeira:", [f"{r['Data']} - R$ {r['Valor']} - {r['ID']}" for r in trash_rows])
+            nota_trash = next(r for r in trash_rows if f"{r['Data']} - R$ {r['Valor']} - {r['ID']}" == escolha_trash)
             st.image(nota_trash['Link_Foto'])
             
-            img_data_trash = requests.get(nota_trash['Link_Foto']).content
-            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"{nota_trash['Data'].replace('/', '-')}_R${nota_trash['Valor']}_{nota_trash['ID']}.jpg", mime="image/jpeg")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Restaurar Nota"):
-                    row_idx = all_notes.index(nota_trash) + 2
-                    sheet_notas.update_cell(row_idx, 7, "Ativo")
-                    st.rerun()
-            with col2:
-                if st.button("Excluir Definitivamente"):
-                    row_idx = all_notes.index(nota_trash) + 2
-                    sheet_notas.delete_rows(row_idx)
-                    st.success("Nota excluída definitivamente")
-                    st.rerun()
-        else: st.write("Lixeira vazia.")
+            if st.button("Restaurar"):
+                sheet_notas.update_cell(all_notes.index(nota_trash) + 2, 7, "Ativo")
+                st.rerun()
+            if st.button("Excluir Definitivamente"):
+                sheet_notas.delete_rows(all_notes.index(nota_trash) + 2)
+                st.rerun()
                 
     if st.button("Sair"):
         for key in list(st.session_state.keys()): del st.session_state[key]
