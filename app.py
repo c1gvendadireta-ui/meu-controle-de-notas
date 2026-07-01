@@ -3,6 +3,7 @@ import gspread
 import hashlib
 import requests
 import json
+from datetime import datetime
 from google.oauth2.service_account import Credentials
 
 # --- CONFIGURAÇÃO ---
@@ -21,6 +22,13 @@ sheet_notas = sh.worksheet("Notas")
 
 def hash_pass(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
+# Função auxiliar para garantir que o valor seja sempre string com 2 casas decimais
+def formatar_valor(v):
+    try:
+        return f"{float(v):.2f}"
+    except:
+        return str(v)
 
 st.title("Controle de Notas")
 
@@ -87,9 +95,11 @@ else:
         if st.button("Enviar Nota"):
             if foto and id_despesa:
                 try:
-                    # Salva como string com ponto, para manter precisão
-                    valor_str = f"{valor:.2f}"
-                    nome_personalizado = f"{valor_str}_{data}_{id_despesa}"
+                    valor_str = formatar_valor(valor)
+                    data_str = data.strftime('%d/%m/%Y')
+                    # Nome do arquivo: Data_Valor_ID
+                    nome_personalizado = f"{data.strftime('%d-%m-%Y')}_{valor_str}_{id_despesa}"
+                    
                     response = requests.post(
                         "https://api.imgbb.com/1/upload",
                         params={"key": IMGBB_API_KEY, "name": nome_personalizado},
@@ -98,7 +108,7 @@ else:
                     data_json = response.json()
                     url_foto = data_json['data']['url']
                     
-                    sheet_notas.append_row([id_despesa, str(data), valor_str, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo"])
+                    sheet_notas.append_row([id_despesa, str(data), f"'{valor_str}", estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo"])
                     st.success("Nota salva!")
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
@@ -107,15 +117,16 @@ else:
     
     with tab2:
         all_notes = sheet_notas.get_all_records()
+        for r in all_notes: r['Valor'] = formatar_valor(r['Valor'])
         user_rows = [r for r in all_notes if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Ativo"]
         if user_rows:
-            # Exibe com vírgula: R$ 234,87
-            escolha = st.selectbox("Selecione sua nota:", [f"R$ {str(r['Valor']).replace('.', ',')} - {r['Data']} - {r['ID']}" for r in user_rows])
-            nota = next(r for r in user_rows if f"R$ {str(r['Valor']).replace('.', ',')} - {r['Data']} - {r['ID']}" == escolha)
+            # Formato no selectbox: DD/MM/YYYY - R$ Valor - ID
+            escolha = st.selectbox("Selecione sua nota:", [f"{r['Data']} - R$ {r['Valor'].replace('.', ',')} - {r['ID']}" for r in user_rows])
+            nota = next(r for r in user_rows if f"{r['Data']} - R$ {r['Valor'].replace('.', ',')} - {r['ID']}" == escolha)
             st.image(nota['Link_Foto'])
             
             img_data = requests.get(nota['Link_Foto']).content
-            st.download_button("Baixar Foto", data=img_data, file_name=f"R${nota['Valor']}_{nota['Data']}_{nota['ID']}.jpg", mime="image/jpeg")
+            st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['Data'].replace('/', '-')}_R${nota['Valor']}_{nota['ID']}.jpg", mime="image/jpeg")
             
             if st.button("Mover para Lixeira"):
                 row_idx = all_notes.index(nota) + 2
@@ -125,14 +136,15 @@ else:
         
     with tab3:
         all_notes = sheet_notas.get_all_records()
+        for r in all_notes: r['Valor'] = formatar_valor(r['Valor'])
         trash_rows = [r for r in all_notes if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Lixeira"]
         if trash_rows:
-            escolha_trash = st.selectbox("Notas na Lixeira:", [f"R$ {str(r['Valor']).replace('.', ',')} - {r['Data']} - {r['ID']}" for r in trash_rows])
-            nota_trash = next(r for r in trash_rows if f"R$ {str(r['Valor']).replace('.', ',')} - {r['Data']} - {r['ID']}" == escolha_trash)
+            escolha_trash = st.selectbox("Notas na Lixeira:", [f"{r['Data']} - R$ {r['Valor'].replace('.', ',')} - {r['ID']}" for r in trash_rows])
+            nota_trash = next(r for r in trash_rows if f"{r['Data']} - R$ {r['Valor'].replace('.', ',')} - {r['ID']}" == escolha_trash)
             st.image(nota_trash['Link_Foto'])
             
             img_data_trash = requests.get(nota_trash['Link_Foto']).content
-            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"R${nota_trash['Valor']}_{nota_trash['Data']}_{nota_trash['ID']}.jpg", mime="image/jpeg")
+            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"{nota_trash['Data'].replace('/', '-')}_R${nota_trash['Valor']}_{nota_trash['ID']}.jpg", mime="image/jpeg")
             
             col1, col2 = st.columns(2)
             with col1:
