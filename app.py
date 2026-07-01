@@ -1,23 +1,19 @@
 import streamlit as st
 import gspread
 import hashlib
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-import io
+import requests
 import json
 from google.oauth2.service_account import Credentials
 
 # --- CONFIGURAÇÃO ---
-PASTA_RAIZ_ID = "1zNvTL_nxpohCwPwks4KVyA6n2Dvbf5Tu"
+IMGBB_API_KEY = "a35f9a3caa695c965c49b45522ce521d"
 
 # Carrega as credenciais da Service Account via Secrets
 creds_dict = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
 creds = Credentials.from_service_account_info(creds_dict, scopes=[
-    'https://www.googleapis.com/auth/drive',
     'https://www.googleapis.com/auth/spreadsheets'
 ])
 
-drive_service = build('drive', 'v3', credentials=creds)
 gc = gspread.authorize(creds)
 sh = gc.open("Controle de notas")
 sheet_usuarios = sh.worksheet("Usuarios")
@@ -25,22 +21,6 @@ sheet_notas = sh.worksheet("Notas")
 
 def hash_pass(password):
     return hashlib.sha256(password.encode()).hexdigest()
-
-def get_or_create_user_folder(drive_service, user_name):
-    # Busca a pasta do usuário dentro da pasta raiz compartilhada
-    query = f"name = '{user_name}' and '{PASTA_RAIZ_ID}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-    results = drive_service.files().list(q=query).execute().get('files', [])
-    
-    if results: 
-        return results[0]['id']
-    
-    # Cria a pasta do usuário dentro da pasta raiz
-    folder = drive_service.files().create(body={
-        'name': user_name, 
-        'mimeType': 'application/vnd.google-apps.folder',
-        'parents': [PASTA_RAIZ_ID]
-    }).execute()
-    return folder.get('id')
 
 st.title("Controle de Notas")
 
@@ -84,19 +64,19 @@ else:
         if st.button("Enviar Nota"):
             if foto and id_despesa:
                 try:
-                    folder_id = get_or_create_user_folder(drive_service, st.session_state.logged_in_user)
-                    nome_arquivo = f"{id_despesa}_{st.session_state.logged_in_user}_{data}.jpg"
+                    # Upload para o ImgBB
+                    response = requests.post(
+                        "https://api.imgbb.com/1/upload",
+                        params={"key": IMGBB_API_KEY},
+                        files={"image": foto.getvalue()}
+                    )
+                    url_foto = response.json()['data']['url']
                     
-                    media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg')
-                    file = drive_service.files().create(
-                        body={'name': nome_arquivo, 'parents': [folder_id]}, 
-                        media_body=media
-                    ).execute()
-                    
-                    sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, file.get('id'), st.session_state.logged_in_user, "Ativo"])
+                    # Salva apenas a URL na planilha
+                    sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo"])
                     st.success("Nota salva com sucesso!")
                 except Exception as e:
-                    st.error(f"Erro ao salvar no Drive: {e}")
+                    st.error(f"Erro ao salvar: {e}")
             else:
                 st.warning("Preencha o ID e tire a foto.")
     
@@ -106,9 +86,7 @@ else:
         if user_rows:
             escolha = st.selectbox("Selecione sua nota:", [f"{r['ID']} - R$ {r['Valor']}" for r in user_rows])
             nota = next(r for r in user_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha)
-            img_data = drive_service.files().get_media(fileId=nota['Link_Foto']).execute()
-            st.image(img_data)
-            st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['ID']}.jpg", mime="image/jpeg")
+            st.image(nota['Link_Foto'])
             if st.button("Mover para Lixeira"):
                 row_idx = all_notes.index(nota) + 2
                 sheet_notas.update_cell(row_idx, 7, "Lixeira")
@@ -121,9 +99,7 @@ else:
         if trash_rows:
             escolha_trash = st.selectbox("Notas na Lixeira:", [f"{r['ID']} - R$ {r['Valor']}" for r in trash_rows])
             nota_trash = next(r for r in trash_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha_trash)
-            img_data = drive_service.files().get_media(fileId=nota_trash['Link_Foto']).execute()
-            st.image(img_data)
-            st.download_button("Baixar Foto da Lixeira", data=img_data, file_name=f"{nota_trash['ID']}.jpg", mime="image/jpeg")
+            st.image(nota_trash['Link_Foto'])
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("Restaurar Nota"):
@@ -134,7 +110,6 @@ else:
                 if st.button("Excluir Definitivamente"):
                     row_idx = all_notes.index(nota_trash) + 2
                     sheet_notas.delete_rows(row_idx)
-                    drive_service.files().delete(fileId=nota_trash['Link_Foto']).execute()
                     st.rerun()
         else: st.write("Lixeira vazia.")
                 
