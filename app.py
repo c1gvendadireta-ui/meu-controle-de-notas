@@ -7,6 +7,9 @@ import io
 import json
 from google.oauth2.service_account import Credentials
 
+# --- CONFIGURAÇÃO ---
+PASTA_RAIZ_ID = "1zNvTL_nxpohCwPwks4KVyA6n2Dvbf5Tu"
+
 # Carrega as credenciais da Service Account via Secrets
 creds_dict = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
 creds = Credentials.from_service_account_info(creds_dict, scopes=[
@@ -24,16 +27,18 @@ def hash_pass(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def get_or_create_user_folder(drive_service, user_name):
-    # Procura a pasta do usuário
-    query = f"name = '{user_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+    # Busca a pasta do usuário dentro da pasta raiz compartilhada
+    query = f"name = '{user_name}' and '{PASTA_RAIZ_ID}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
     results = drive_service.files().list(q=query).execute().get('files', [])
+    
     if results: 
         return results[0]['id']
     
-    # Se não achar, cria a pasta na raiz do Drive compartilhado
+    # Cria a pasta do usuário dentro da pasta raiz
     folder = drive_service.files().create(body={
         'name': user_name, 
-        'mimeType': 'application/vnd.google-apps.folder'
+        'mimeType': 'application/vnd.google-apps.folder',
+        'parents': [PASTA_RAIZ_ID]
     }).execute()
     return folder.get('id')
 
@@ -75,6 +80,7 @@ else:
         data = st.date_input("Data")
         estabelecimento = st.text_input("Estabelecimento")
         foto = st.camera_input("Tirar Foto")
+        
         if st.button("Enviar Nota"):
             if foto and id_despesa:
                 try:
