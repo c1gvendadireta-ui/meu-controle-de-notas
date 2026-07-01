@@ -92,7 +92,6 @@ else:
             if foto and id_despesa:
                 try:
                     valor_str = formatar_valor(valor)
-                    # Nome formatado: DD-MM-YYYY_Valor_Tipo
                     nome_personalizado = f"{data.strftime('%d-%m-%Y')}_{valor_str}_{id_despesa}"
                     
                     response = requests.post(
@@ -102,7 +101,6 @@ else:
                     )
                     url_foto = response.json()['data']['url']
                     
-                    # Salva sem o apóstrofo
                     sheet_notas.append_row([id_despesa, data.strftime('%d/%m/%Y'), valor_str, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo"])
                     st.success("Nota salva!")
                 except Exception as e:
@@ -112,7 +110,6 @@ else:
         all_notes = sheet_notas.get_all_records()
         user_rows = [r for r in all_notes if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Ativo"]
         if user_rows:
-            # Exibe: Data - R$ Valor - ID
             escolha = st.selectbox("Selecione sua nota:", [f"{r['Data']} - R$ {r['Valor']} - {r['ID']}" for r in user_rows])
             nota = next(r for r in user_rows if f"{r['Data']} - R$ {r['Valor']} - {r['ID']}" == escolha)
             st.image(nota['Link_Foto'])
@@ -132,12 +129,18 @@ else:
             nota_trash = next(r for r in trash_rows if f"{r['Data']} - R$ {r['Valor']} - {r['ID']}" == escolha_trash)
             st.image(nota_trash['Link_Foto'])
             
+            # Botão de download restaurado aqui:
+            img_data_trash = requests.get(nota_trash['Link_Foto']).content
+            st.download_button("Baixar Foto", data=img_data_trash, file_name=f"{nota_trash['Data'].replace('/', '-')}_R${nota_trash['Valor']}.jpg", mime="image/jpeg")
+            
             if st.button("Restaurar"):
                 sheet_notas.update_cell(all_notes.index(nota_trash) + 2, 7, "Ativo")
                 st.rerun()
             if st.button("Excluir Definitivamente"):
                 sheet_notas.delete_rows(all_notes.index(nota_trash) + 2)
                 st.rerun()
+        else:
+            st.write("Lixeira vazia.")
                 
     if st.button("Sair"):
         for key in list(st.session_state.keys()): del st.session_state[key]
