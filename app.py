@@ -75,18 +75,14 @@ else:
     tab1, tab2, tab3 = st.tabs(["Nova Nota", "Visualizar", "Lixeira"])
     
     with tab1:
-        # Novo Dropdown
         tipo_despesa = st.selectbox("Tipo de Despesa", ["Café", "Almoço", "Jantar", "Lanche", "Transporte", "Outros"])
         id_despesa = tipo_despesa
-        
-        # Campo extra para "Outros"
         if tipo_despesa == "Outros":
             id_despesa = st.text_input("Especifique a despesa:")
             
         valor = st.number_input("Valor", min_value=0.0, format="%.2f")
         data = st.date_input("Data")
         estabelecimento = st.text_input("Estabelecimento")
-        
         foto = st.camera_input("Tirar Foto da Nota")
         
         if st.button("Enviar Nota"):
@@ -112,12 +108,13 @@ else:
         all_notes = sheet_notas.get_all_records()
         user_rows = [r for r in all_notes if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Ativo"]
         if user_rows:
-            escolha = st.selectbox("Selecione sua nota:", [f"{r['ID']} - R$ {r['Valor']}" for r in user_rows])
-            nota = next(r for r in user_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha)
+            # Identificação R$ Valor - Data - ID
+            escolha = st.selectbox("Selecione sua nota:", [f"R$ {r['Valor']} - {r['Data']} - {r['ID']}" for r in user_rows])
+            nota = next(r for r in user_rows if f"R$ {r['Valor']} - {r['Data']} - {r['ID']}" == escolha)
             st.image(nota['Link_Foto'])
             
             img_data = requests.get(nota['Link_Foto']).content
-            st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['ID']}_{nota['Data']}_{nota['Valor']}.jpg", mime="image/jpeg")
+            st.download_button("Baixar Foto", data=img_data, file_name=f"R${nota['Valor']}_{nota['Data']}_{nota['ID']}.jpg", mime="image/jpeg")
             
             if st.button("Mover para Lixeira"):
                 row_idx = all_notes.index(nota) + 2
@@ -129,12 +126,13 @@ else:
         all_notes = sheet_notas.get_all_records()
         trash_rows = [r for r in all_notes if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Lixeira"]
         if trash_rows:
-            escolha_trash = st.selectbox("Notas na Lixeira:", [f"{r['ID']} - R$ {r['Valor']}" for r in trash_rows])
-            nota_trash = next(r for r in trash_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha_trash)
+            # Identificação R$ Valor - Data - ID
+            escolha_trash = st.selectbox("Notas na Lixeira:", [f"R$ {r['Valor']} - {r['Data']} - {r['ID']}" for r in trash_rows])
+            nota_trash = next(r for r in trash_rows if f"R$ {r['Valor']} - {r['Data']} - {r['ID']}" == escolha_trash)
             st.image(nota_trash['Link_Foto'])
             
             img_data_trash = requests.get(nota_trash['Link_Foto']).content
-            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"{nota_trash['ID']}_{nota_trash['Data']}_{nota_trash['Valor']}.jpg", mime="image/jpeg")
+            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"R${nota_trash['Valor']}_{nota_trash['Data']}_{nota_trash['ID']}.jpg", mime="image/jpeg")
             
             col1, col2 = st.columns(2)
             with col1:
