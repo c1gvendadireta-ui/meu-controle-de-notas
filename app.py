@@ -65,16 +65,18 @@ else:
         if st.button("Enviar Nota"):
             if foto and id_despesa:
                 try:
-                    # Nomenclatura personalizada: ID-Data-Valor
                     nome_personalizado = f"{id_despesa}_{data}_{valor}"
-                    
                     response = requests.post(
                         "https://api.imgbb.com/1/upload",
                         params={"key": IMGBB_API_KEY, "name": nome_personalizado},
                         files={"image": foto.getvalue()}
                     )
-                    url_foto = response.json()['data']['url']
-                    sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo"])
+                    data_json = response.json()
+                    url_foto = data_json['data']['url']
+                    delete_url = data_json['data']['delete_url'] # Captura a URL de exclusão
+                    
+                    # Salva na coluna H (Delete_Url)
+                    sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo", delete_url])
                     st.success(f"Nota salva como: {nome_personalizado}")
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
@@ -117,8 +119,13 @@ else:
                     st.rerun()
             with col2:
                 if st.button("Excluir Definitivamente"):
+                    # Apaga a imagem no ImgBB
+                    if nota_trash.get('Delete_Url'):
+                        requests.get(nota_trash['Delete_Url'])
+                    
                     row_idx = all_notes.index(nota_trash) + 2
                     sheet_notas.delete_rows(row_idx)
+                    st.success("Nota e imagem excluídas com sucesso!")
                     st.rerun()
         else: st.write("Lixeira vazia.")
                 
