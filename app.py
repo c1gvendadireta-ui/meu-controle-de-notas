@@ -73,9 +73,8 @@ else:
                     )
                     data_json = response.json()
                     url_foto = data_json['data']['url']
-                    delete_url = data_json['data']['delete_url'] # Captura a URL de exclusão
+                    delete_url = data_json['data']['delete_url']
                     
-                    # Salva na coluna H (Delete_Url)
                     sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo", delete_url])
                     st.success(f"Nota salva como: {nome_personalizado}")
                 except Exception as e:
@@ -119,11 +118,16 @@ else:
                     st.rerun()
             with col2:
                 if st.button("Excluir Definitivamente"):
-                    # Apaga a imagem no ImgBB
-                    if nota_trash.get('Delete_Url'):
-                        requests.get(nota_trash['Delete_Url'])
-                    
+                    # Busca a Delete_Url diretamente na coluna H (índice 8)
                     row_idx = all_notes.index(nota_trash) + 2
+                    delete_url = sheet_notas.cell(row_idx, 8).value
+                    
+                    if delete_url:
+                        try:
+                            requests.get(delete_url)
+                        except:
+                            st.warning("Não foi possível excluir a imagem do servidor.")
+                    
                     sheet_notas.delete_rows(row_idx)
                     st.success("Nota e imagem excluídas com sucesso!")
                     st.rerun()
