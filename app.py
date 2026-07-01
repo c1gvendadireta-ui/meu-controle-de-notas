@@ -24,6 +24,15 @@ def hash_pass(password):
 
 st.title("Controle de Notas")
 
+# Estilização para otimizar a visualização da câmera no celular
+st.markdown("""
+    <style>
+    [data-testid="stCameraInput"] {
+        width: 100% !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 if "logged_in_user" not in st.session_state:
     st.subheader("Acesso ao Sistema")
     modo = st.radio("O que deseja fazer?", ["Entrar com minha conta", "Criar novo cadastro"])
@@ -59,7 +68,9 @@ else:
         valor = st.number_input("Valor", min_value=0.0, format="%.2f")
         data = st.date_input("Data")
         estabelecimento = st.text_input("Estabelecimento")
-        foto = st.camera_input("Tirar Foto")
+        
+        # Câmera direta, sem salvar na galeria
+        foto = st.camera_input("Tirar Foto da Nota")
         
         if st.button("Enviar Nota"):
             if foto and id_despesa:
