@@ -24,10 +24,17 @@ def hash_pass(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def get_or_create_user_folder(drive_service, user_name):
+    # Procura a pasta do usuário
     query = f"name = '{user_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
     results = drive_service.files().list(q=query).execute().get('files', [])
-    if results: return results[0]['id']
-    folder = drive_service.files().create(body={'name': user_name, 'mimeType': 'application/vnd.google-apps.folder'}).execute()
+    if results: 
+        return results[0]['id']
+    
+    # Se não achar, cria a pasta na raiz do Drive compartilhado
+    folder = drive_service.files().create(body={
+        'name': user_name, 
+        'mimeType': 'application/vnd.google-apps.folder'
+    }).execute()
     return folder.get('id')
 
 st.title("Controle de Notas")
@@ -63,7 +70,6 @@ else:
     tab1, tab2, tab3 = st.tabs(["Nova Nota", "Visualizar", "Lixeira"])
     
     with tab1:
-        # Rótulo atualizado conforme solicitado
         id_despesa = st.text_input("ID da Despesa (ex: café, almoço, lanche, jantar, táxi...)")
         valor = st.number_input("Valor", min_value=0.0, format="%.2f")
         data = st.date_input("Data")
@@ -71,10 +77,22 @@ else:
         foto = st.camera_input("Tirar Foto")
         if st.button("Enviar Nota"):
             if foto and id_despesa:
-                folder_id = get_or_create_user_folder(drive_service, st.session_state.logged_in_user)
-                file = drive_service.files().create(body={'name': f"{id_despesa}.jpg", 'parents': [folder_id]}, media_body=MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg')).execute()
-                sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, file.get('id'), st.session_state.logged_in_user, "Ativo"])
-                st.success("Nota salva!")
+                try:
+                    folder_id = get_or_create_user_folder(drive_service, st.session_state.logged_in_user)
+                    nome_arquivo = f"{id_despesa}_{st.session_state.logged_in_user}_{data}.jpg"
+                    
+                    media = MediaIoBaseUpload(io.BytesIO(foto.getvalue()), mimetype='image/jpeg')
+                    file = drive_service.files().create(
+                        body={'name': nome_arquivo, 'parents': [folder_id]}, 
+                        media_body=media
+                    ).execute()
+                    
+                    sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, file.get('id'), st.session_state.logged_in_user, "Ativo"])
+                    st.success("Nota salva com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao salvar no Drive: {e}")
+            else:
+                st.warning("Preencha o ID e tire a foto.")
     
     with tab2:
         all_notes = sheet_notas.get_all_records()
