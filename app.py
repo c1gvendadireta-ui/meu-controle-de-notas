@@ -87,7 +87,7 @@ else:
         if st.button("Enviar Nota"):
             if foto and id_despesa:
                 try:
-                    # Garantir salvamento como texto exato
+                    # Salva como string com ponto, para manter precisão
                     valor_str = f"{valor:.2f}"
                     nome_personalizado = f"{valor_str}_{data}_{id_despesa}"
                     response = requests.post(
@@ -98,7 +98,6 @@ else:
                     data_json = response.json()
                     url_foto = data_json['data']['url']
                     
-                    # Salvar valor como string na planilha
                     sheet_notas.append_row([id_despesa, str(data), valor_str, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo"])
                     st.success("Nota salva!")
                 except Exception as e:
@@ -110,13 +109,13 @@ else:
         all_notes = sheet_notas.get_all_records()
         user_rows = [r for r in all_notes if r.get('Usuario') == st.session_state.logged_in_user and r.get('Status') == "Ativo"]
         if user_rows:
-            # Força a conversão para string com vírgula antes de exibir
+            # Exibe com vírgula: R$ 234,87
             escolha = st.selectbox("Selecione sua nota:", [f"R$ {str(r['Valor']).replace('.', ',')} - {r['Data']} - {r['ID']}" for r in user_rows])
             nota = next(r for r in user_rows if f"R$ {str(r['Valor']).replace('.', ',')} - {r['Data']} - {r['ID']}" == escolha)
             st.image(nota['Link_Foto'])
             
             img_data = requests.get(nota['Link_Foto']).content
-            st.download_button("Baixar Foto", data=img_data, file_name=f"R${str(nota['Valor']).replace('.', ',')}_{nota['Data']}_{nota['ID']}.jpg", mime="image/jpeg")
+            st.download_button("Baixar Foto", data=img_data, file_name=f"R${nota['Valor']}_{nota['Data']}_{nota['ID']}.jpg", mime="image/jpeg")
             
             if st.button("Mover para Lixeira"):
                 row_idx = all_notes.index(nota) + 2
@@ -133,7 +132,7 @@ else:
             st.image(nota_trash['Link_Foto'])
             
             img_data_trash = requests.get(nota_trash['Link_Foto']).content
-            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"R${str(nota_trash['Valor']).replace('.', ',')}_{nota_trash['Data']}_{nota_trash['ID']}.jpg", mime="image/jpeg")
+            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"R${nota_trash['Valor']}_{nota_trash['Data']}_{nota_trash['ID']}.jpg", mime="image/jpeg")
             
             col1, col2 = st.columns(2)
             with col1:
