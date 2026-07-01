@@ -63,7 +63,8 @@ else:
     tab1, tab2, tab3 = st.tabs(["Nova Nota", "Visualizar", "Lixeira"])
     
     with tab1:
-        id_despesa = st.text_input("ID da Despesa")
+        # Rótulo atualizado conforme solicitado
+        id_despesa = st.text_input("ID da Despesa (ex: café, almoço, lanche, jantar, táxi...)")
         valor = st.number_input("Valor", min_value=0.0, format="%.2f")
         data = st.date_input("Data")
         estabelecimento = st.text_input("Estabelecimento")
