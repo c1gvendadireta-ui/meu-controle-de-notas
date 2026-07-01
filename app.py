@@ -64,6 +64,7 @@ else:
         if st.button("Enviar Nota"):
             if foto and id_despesa:
                 try:
+                    # Nomenclatura personalizada ID_Data_Valor
                     nome_personalizado = f"{id_despesa}_{data}_{valor}"
                     response = requests.post(
                         "https://api.imgbb.com/1/upload",
@@ -73,7 +74,6 @@ else:
                     data_json = response.json()
                     url_foto = data_json['data']['url']
                     
-                    # Salva na planilha (sem tentar deletar o que não é possível via API gratuita)
                     sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo"])
                     st.success("Nota salva!")
                 except Exception as e:
@@ -105,6 +105,9 @@ else:
             escolha_trash = st.selectbox("Notas na Lixeira:", [f"{r['ID']} - R$ {r['Valor']}" for r in trash_rows])
             nota_trash = next(r for r in trash_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha_trash)
             st.image(nota_trash['Link_Foto'])
+            
+            img_data_trash = requests.get(nota_trash['Link_Foto']).content
+            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"{nota_trash['ID']}_LIXEIRA.jpg", mime="image/jpeg")
             
             col1, col2 = st.columns(2)
             with col1:
