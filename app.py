@@ -9,7 +9,6 @@ from google.oauth2.service_account import Credentials
 IMGBB_API_KEY = "a35f9a3caa695c965c49b45522ce521d"
 SPREADSHEET_ID = "1uKam-HuCEDBsF_8pNM1ICaPEX38Oz57rRZL8_O4ycaQ"
 
-# Carrega as credenciais da Service Account via Secrets
 creds_dict = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
 creds = Credentials.from_service_account_info(creds_dict, scopes=[
     'https://www.googleapis.com/auth/spreadsheets'
@@ -72,13 +71,11 @@ else:
                         files={"image": foto.getvalue()}
                     )
                     data_json = response.json()
-                    
-                    # Captura explícita da URL de deleção da API
                     url_foto = data_json['data']['url']
-                    delete_url = data_json['data']['delete_url']
                     
-                    sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo", delete_url])
-                    st.success(f"Nota salva! (URL de deleção capturada)")
+                    # Salva na planilha (sem tentar deletar o que não é possível via API gratuita)
+                    sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo"])
+                    st.success("Nota salva!")
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
             else:
@@ -117,22 +114,9 @@ else:
                     st.rerun()
             with col2:
                 if st.button("Excluir Definitivamente"):
-                    # Busca a Delete_Url na coluna H (índice 8)
                     row_idx = all_notes.index(nota_trash) + 2
-                    delete_url = sheet_notas.cell(row_idx, 8).value
-                    
-                    if delete_url:
-                        try:
-                            # Requisição para deletar no ImgBB
-                            del_resp = requests.get(delete_url)
-                            if del_resp.status_code == 200:
-                                st.success("Imagem removida do servidor.")
-                            else:
-                                st.error(f"Erro ao remover imagem (Código: {del_resp.status_code})")
-                        except Exception as e:
-                            st.warning(f"Erro na conexão com ImgBB: {e}")
-                    
                     sheet_notas.delete_rows(row_idx)
+                    st.success("Nota excluída definitivamente")
                     st.rerun()
         else: st.write("Lixeira vazia.")
                 
