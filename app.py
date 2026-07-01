@@ -60,9 +60,18 @@ if "logged_in_user" not in st.session_state:
                 st.success("Cadastro realizado!")
                 st.rerun()
 else:
-    # Assinatura de desenvolvedor na barra lateral
+    # Assinatura de desenvolvedor e avisos na barra lateral
     st.sidebar.markdown("### Sobre o App")
     st.sidebar.markdown("Desenvolvido por: [Raphael Dionisio](mailto:raphael.dionisio@technipfmc.com)")
+    
+    st.sidebar.markdown("---")
+    st.sidebar.warning("""
+    **Avisos Importantes:**
+    * Este aplicativo é público, use-o com responsabilidade.
+    * Não carregue informações confidenciais da empresa.
+    * O desenvolvedor não se responsabiliza por perda de dados, uso indevido ou eventuais falhas do serviço.
+    * Esse aplicativo deve ser usado como uma ferramenta de backup auxiliar para notas de despesas de viagem.
+    """)
     
     st.success(f"Bem-vindo, {st.session_state.logged_in_user}!")
     tab1, tab2, tab3 = st.tabs(["Nova Nota", "Visualizar", "Lixeira"])
