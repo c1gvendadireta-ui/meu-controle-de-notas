@@ -64,7 +64,6 @@ else:
         if st.button("Enviar Nota"):
             if foto and id_despesa:
                 try:
-                    # Nomenclatura personalizada ID_Data_Valor
                     nome_personalizado = f"{id_despesa}_{data}_{valor}"
                     response = requests.post(
                         "https://api.imgbb.com/1/upload",
@@ -90,7 +89,7 @@ else:
             st.image(nota['Link_Foto'])
             
             img_data = requests.get(nota['Link_Foto']).content
-            st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['ID']}.jpg", mime="image/jpeg")
+            st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['ID']}_{nota['Data']}_{nota['Valor']}.jpg", mime="image/jpeg")
             
             if st.button("Mover para Lixeira"):
                 row_idx = all_notes.index(nota) + 2
@@ -107,7 +106,7 @@ else:
             st.image(nota_trash['Link_Foto'])
             
             img_data_trash = requests.get(nota_trash['Link_Foto']).content
-            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"{nota_trash['ID']}_LIXEIRA.jpg", mime="image/jpeg")
+            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"{nota_trash['ID']}_{nota_trash['Data']}_{nota_trash['Valor']}.jpg", mime="image/jpeg")
             
             col1, col2 = st.columns(2)
             with col1:
