@@ -56,7 +56,7 @@ else:
     tab1, tab2, tab3 = st.tabs(["Nova Nota", "Visualizar", "Lixeira"])
     
     with tab1:
-        id_despesa = st.text_input("ID da Despesa (ex: café, almoço, lanche, jantar, táxi...)")
+        id_despesa = st.text_input("ID da Despesa")
         valor = st.number_input("Valor", min_value=0.0, format="%.2f")
         data = st.date_input("Data")
         estabelecimento = st.text_input("Estabelecimento")
@@ -72,11 +72,13 @@ else:
                         files={"image": foto.getvalue()}
                     )
                     data_json = response.json()
+                    
+                    # Captura explícita da URL de deleção da API
                     url_foto = data_json['data']['url']
                     delete_url = data_json['data']['delete_url']
                     
                     sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo", delete_url])
-                    st.success(f"Nota salva como: {nome_personalizado}")
+                    st.success(f"Nota salva! (URL de deleção capturada)")
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
             else:
@@ -91,7 +93,7 @@ else:
             st.image(nota['Link_Foto'])
             
             img_data = requests.get(nota['Link_Foto']).content
-            st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['ID']}_{nota['Data']}_{nota['Valor']}.jpg", mime="image/jpeg")
+            st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['ID']}.jpg", mime="image/jpeg")
             
             if st.button("Mover para Lixeira"):
                 row_idx = all_notes.index(nota) + 2
@@ -107,9 +109,6 @@ else:
             nota_trash = next(r for r in trash_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha_trash)
             st.image(nota_trash['Link_Foto'])
             
-            img_data_trash = requests.get(nota_trash['Link_Foto']).content
-            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"{nota_trash['ID']}_LIXEIRA.jpg", mime="image/jpeg")
-            
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("Restaurar Nota"):
@@ -118,18 +117,22 @@ else:
                     st.rerun()
             with col2:
                 if st.button("Excluir Definitivamente"):
-                    # Busca a Delete_Url diretamente na coluna H (índice 8)
+                    # Busca a Delete_Url na coluna H (índice 8)
                     row_idx = all_notes.index(nota_trash) + 2
                     delete_url = sheet_notas.cell(row_idx, 8).value
                     
                     if delete_url:
                         try:
-                            requests.get(delete_url)
-                        except:
-                            st.warning("Não foi possível excluir a imagem do servidor.")
+                            # Requisição para deletar no ImgBB
+                            del_resp = requests.get(delete_url)
+                            if del_resp.status_code == 200:
+                                st.success("Imagem removida do servidor.")
+                            else:
+                                st.error(f"Erro ao remover imagem (Código: {del_resp.status_code})")
+                        except Exception as e:
+                            st.warning(f"Erro na conexão com ImgBB: {e}")
                     
                     sheet_notas.delete_rows(row_idx)
-                    st.success("Nota e imagem excluídas com sucesso!")
                     st.rerun()
         else: st.write("Lixeira vazia.")
                 
