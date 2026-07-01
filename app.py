@@ -7,6 +7,7 @@ from google.oauth2.service_account import Credentials
 
 # --- CONFIGURAÇÃO ---
 IMGBB_API_KEY = "a35f9a3caa695c965c49b45522ce521d"
+SPREADSHEET_ID = "1uKam-HuCEDBsF_8pNM1ICaPEX38Oz57rRZL8_O4ycaQ"
 
 # Carrega as credenciais da Service Account via Secrets
 creds_dict = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
@@ -15,7 +16,8 @@ creds = Credentials.from_service_account_info(creds_dict, scopes=[
 ])
 
 gc = gspread.authorize(creds)
-sh = gc.open("Controle de notas")
+# Acesso direto pela chave da planilha
+sh = gc.open_by_key(SPREADSHEET_ID)
 sheet_usuarios = sh.worksheet("Usuarios")
 sheet_notas = sh.worksheet("Notas")
 
