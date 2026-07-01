@@ -60,10 +60,8 @@ if "logged_in_user" not in st.session_state:
                 st.success("Cadastro realizado!")
                 st.rerun()
 else:
-    # Assinatura de desenvolvedor e avisos na barra lateral
     st.sidebar.markdown("### Sobre o App")
     st.sidebar.markdown("Desenvolvido por: [Raphael Dionisio](mailto:raphael.dionisio@technipfmc.com)")
-    
     st.sidebar.markdown("---")
     st.sidebar.warning("""
     **Avisos Importantes:**
@@ -77,12 +75,18 @@ else:
     tab1, tab2, tab3 = st.tabs(["Nova Nota", "Visualizar", "Lixeira"])
     
     with tab1:
-        id_despesa = st.text_input("ID da Despesa")
+        # Novo Dropdown
+        tipo_despesa = st.selectbox("Tipo de Despesa", ["Café", "Almoço", "Jantar", "Lanche", "Transporte", "Outros"])
+        id_despesa = tipo_despesa
+        
+        # Campo extra para "Outros"
+        if tipo_despesa == "Outros":
+            id_despesa = st.text_input("Especifique a despesa:")
+            
         valor = st.number_input("Valor", min_value=0.0, format="%.2f")
         data = st.date_input("Data")
         estabelecimento = st.text_input("Estabelecimento")
         
-        # Câmera direta, sem salvar na galeria
         foto = st.camera_input("Tirar Foto da Nota")
         
         if st.button("Enviar Nota"):
@@ -102,7 +106,7 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
             else:
-                st.warning("Preencha o ID e tire a foto.")
+                st.warning("Preencha o ID/Tipo e tire a foto.")
     
     with tab2:
         all_notes = sheet_notas.get_all_records()
