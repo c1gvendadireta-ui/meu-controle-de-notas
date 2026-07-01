@@ -65,14 +65,17 @@ else:
         if st.button("Enviar Nota"):
             if foto and id_despesa:
                 try:
+                    # Nomenclatura personalizada: ID-Data-Valor
+                    nome_personalizado = f"{id_despesa}_{data}_{valor}"
+                    
                     response = requests.post(
                         "https://api.imgbb.com/1/upload",
-                        params={"key": IMGBB_API_KEY},
+                        params={"key": IMGBB_API_KEY, "name": nome_personalizado},
                         files={"image": foto.getvalue()}
                     )
                     url_foto = response.json()['data']['url']
                     sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo"])
-                    st.success("Nota salva com sucesso!")
+                    st.success(f"Nota salva como: {nome_personalizado}")
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
             else:
@@ -86,9 +89,8 @@ else:
             nota = next(r for r in user_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha)
             st.image(nota['Link_Foto'])
             
-            # Botão de Download
             img_data = requests.get(nota['Link_Foto']).content
-            st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['ID']}.jpg", mime="image/jpeg")
+            st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['ID']}_{nota['Data']}_{nota['Valor']}.jpg", mime="image/jpeg")
             
             if st.button("Mover para Lixeira"):
                 row_idx = all_notes.index(nota) + 2
@@ -104,9 +106,8 @@ else:
             nota_trash = next(r for r in trash_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha_trash)
             st.image(nota_trash['Link_Foto'])
             
-            # Botão de Download na Lixeira
             img_data_trash = requests.get(nota_trash['Link_Foto']).content
-            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"{nota_trash['ID']}.jpg", mime="image/jpeg")
+            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"{nota_trash['ID']}_LIXEIRA.jpg", mime="image/jpeg")
             
             col1, col2 = st.columns(2)
             with col1:
