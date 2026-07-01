@@ -16,7 +16,6 @@ creds = Credentials.from_service_account_info(creds_dict, scopes=[
 ])
 
 gc = gspread.authorize(creds)
-# Acesso direto pela chave da planilha
 sh = gc.open_by_key(SPREADSHEET_ID)
 sheet_usuarios = sh.worksheet("Usuarios")
 sheet_notas = sh.worksheet("Notas")
@@ -66,15 +65,12 @@ else:
         if st.button("Enviar Nota"):
             if foto and id_despesa:
                 try:
-                    # Upload para o ImgBB
                     response = requests.post(
                         "https://api.imgbb.com/1/upload",
                         params={"key": IMGBB_API_KEY},
                         files={"image": foto.getvalue()}
                     )
                     url_foto = response.json()['data']['url']
-                    
-                    # Salva apenas a URL na planilha
                     sheet_notas.append_row([id_despesa, str(data), valor, estabelecimento, url_foto, st.session_state.logged_in_user, "Ativo"])
                     st.success("Nota salva com sucesso!")
                 except Exception as e:
@@ -89,6 +85,11 @@ else:
             escolha = st.selectbox("Selecione sua nota:", [f"{r['ID']} - R$ {r['Valor']}" for r in user_rows])
             nota = next(r for r in user_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha)
             st.image(nota['Link_Foto'])
+            
+            # Botão de Download
+            img_data = requests.get(nota['Link_Foto']).content
+            st.download_button("Baixar Foto", data=img_data, file_name=f"{nota['ID']}.jpg", mime="image/jpeg")
+            
             if st.button("Mover para Lixeira"):
                 row_idx = all_notes.index(nota) + 2
                 sheet_notas.update_cell(row_idx, 7, "Lixeira")
@@ -102,6 +103,11 @@ else:
             escolha_trash = st.selectbox("Notas na Lixeira:", [f"{r['ID']} - R$ {r['Valor']}" for r in trash_rows])
             nota_trash = next(r for r in trash_rows if f"{r['ID']} - R$ {r['Valor']}" == escolha_trash)
             st.image(nota_trash['Link_Foto'])
+            
+            # Botão de Download na Lixeira
+            img_data_trash = requests.get(nota_trash['Link_Foto']).content
+            st.download_button("Baixar Foto da Lixeira", data=img_data_trash, file_name=f"{nota_trash['ID']}.jpg", mime="image/jpeg")
+            
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("Restaurar Nota"):
